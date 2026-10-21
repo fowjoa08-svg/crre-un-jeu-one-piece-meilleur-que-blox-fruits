@@ -149,11 +149,19 @@ app.put('/api/save', requireAuth, async (req, res) => {
   }
   try {
     const { rows } = await pool.query(
-      `INSERT INTO saves (user_id, state, updated_at) VALUES ($1, $2, now())
+      `WITH account AS (
+         SELECT id FROM users WHERE id = $1 FOR KEY SHARE
+       )
+       INSERT INTO saves (user_id, state, updated_at)
+       SELECT id, $2, now() FROM account
        ON CONFLICT (user_id) DO UPDATE SET state = EXCLUDED.state, updated_at = now()
        RETURNING updated_at`,
       [req.userId, state]
     );
+    if (!rows[0]) {
+      res.clearCookie(COOKIE_NAME, { ...COOKIE_OPTS, maxAge: undefined });
+      return res.status(401).json({ error: 'Session invalide' });
+    }
     res.json({ ok: true, savedAt: rows[0].updated_at });
   } catch (err) {
     // The token is still valid but the account is gone: answer 401 so the client
