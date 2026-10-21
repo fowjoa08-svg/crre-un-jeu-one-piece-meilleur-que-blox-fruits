@@ -156,6 +156,12 @@ app.put('/api/save', requireAuth, async (req, res) => {
     );
     res.json({ ok: true, savedAt: rows[0].updated_at });
   } catch (err) {
+    // The token is still valid but the account is gone: answer 401 so the client
+    // goes back to the login screen instead of retrying into a foreign-key error.
+    if (err.code === '23503') {
+      res.clearCookie(COOKIE_NAME, { ...COOKIE_OPTS, maxAge: undefined });
+      return res.status(401).json({ error: 'Session invalide' });
+    }
     console.error('save write failed', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
